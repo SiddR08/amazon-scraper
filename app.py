@@ -65,7 +65,7 @@ def scrape_amazon():
 
     try:
         for asin in asins:
-            url = f"https://www.amazon.in/dp/{asin}?th=1&psc=1"
+            url = f"https://www.amazon.com/dp/{asin}?th=1&psc=1"
             driver.get(url)
             time.sleep(3)  # Allow time to load
 
