@@ -5,6 +5,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from bs4 import BeautifulSoup
 import time
+from webdriver_manager.chrome import ChromeDriverManager
 
 app = Flask(__name__)
 
@@ -14,8 +15,11 @@ def setup_driver():
     options.add_argument("--disable-gpu")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--window-size=1920,1080")
+    options.add_argument("--remote-debugging-port=9222")
     
-    service = Service()  # This will use system-installed Chrome
+    # Use ChromeDriverManager to handle driver installation
+    service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=options)
     return driver
 
@@ -52,6 +56,10 @@ def scrape_amazon():
         driver.quit()
 
     return jsonify(results)
+
+@app.route('/', methods=['GET'])
+def home():
+    return jsonify({"status": "ok", "message": "Amazon Scraper API is running. Use /scrape endpoint."})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
