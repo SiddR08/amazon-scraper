@@ -3,25 +3,54 @@ from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
 import time
-from webdriver_manager.chrome import ChromeDriverManager
 
 app = Flask(__name__)
 
 def setup_driver():
     options = Options()
-    options.add_argument("--headless")
+    options.add_argument("--headless")  # Run in headless mode for faster scraping
     options.add_argument("--disable-gpu")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--window-size=1920,1080")
-    options.add_argument("--remote-debugging-port=9222")
-    
-    # Use ChromeDriverManager to handle driver installation
-    service = Service(ChromeDriverManager().install())
+
+    service = Service()
     driver = webdriver.Chrome(service=service, options=options)
+    driver.maximize_window()
     return driver
+
+def get_price(driver):
+    """Extracts the price using Amazon's updated selectors."""
+    try:
+        price_element = WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located((By.CLASS_NAME, "a-price-whole"))
+        )
+        price = price_element.text.strip()
+
+        # Amazon sometimes stores decimal places separately
+        fraction_element = driver.find_elements(By.CLASS_NAME, "a-price-fraction")
+        if fraction_element:
+            price += "." + fraction_element[0].text.strip()
+
+        return price
+    except:
+        return "No Price Found"
+
+def get_seller(driver):
+    """Extracts the seller name using updated selectors."""
+    try:
+        seller_element = driver.find_element(By.ID, "sellerProfileTriggerId")
+        return seller_element.text.strip()
+    except:
+        try:
+            # Fallback: Check if the product is sold by Amazon
+            seller_element = driver.find_element(By.CSS_SELECTOR, ".tabular-buybox-text-message")
+            return seller_element.text.strip()
+        except:
+            return "No Seller Found"
 
 @app.route('/scrape', methods=['POST'])
 def scrape_amazon():
@@ -38,16 +67,13 @@ def scrape_amazon():
         for asin in asins:
             url = f"https://www.amazon.com/dp/{asin}"
             driver.get(url)
-            time.sleep(3)  # Give time to load
+            time.sleep(3)  # Allow time to load
 
-            soup = BeautifulSoup(driver.page_source, "html.parser")
-            seller_element = soup.select_one("#sellerProfileTriggerId")
-            price_element = soup.select_one(".a-price-whole")
+            # Extract price and seller
+            price = get_price(driver)
+            seller = get_seller(driver)
 
-            seller_name = seller_element.text.strip() if seller_element else "No Seller Found"
-            price = price_element.text.strip() if price_element else "No Price Found"
-
-            results.append({"asin": asin, "seller": seller_name, "price": price})
+            results.append({"asin": asin, "seller": seller, "price": price})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
